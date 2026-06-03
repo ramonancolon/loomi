@@ -1,0 +1,82 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 920" font-family="system-ui, Segoe UI, sans-serif">
+  <defs>
+    <marker id="arrow" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto">
+      <path d="M0,0 L9,3 L0,6 Z" fill="#475569"/>
+    </marker>
+    <style>
+      .title { font-size: 22px; font-weight: 700; fill: #0f172a; }
+      .subtitle { font-size: 13px; fill: #64748b; }
+      .box-title { font-size: 13px; font-weight: 700; fill: #0f172a; }
+      .node { font-size: 12px; fill: #1e293b; }
+      .edge-label { font-size: 11px; fill: #475569; }
+      .group { fill: #f8fafc; stroke: #cbd5e1; stroke-width: 1.5; rx: 10; }
+      .group-ui { fill: #eff6ff; stroke: #93c5fd; }
+      .group-api { fill: #f0fdf4; stroke: #86efac; }
+      .group-temporal { fill: #faf5ff; stroke: #d8b4fe; }
+      .group-agent { fill: #fff7ed; stroke: #fdba74; }
+      .group-mcp { fill: #fef2f2; stroke: #fca5a5; }
+      .pill { fill: #ffffff; stroke: #94a3b8; stroke-width: 1; rx: 6; }
+      .line { stroke: #475569; stroke-width: 1.4; fill: none; marker-end: url(#arrow); }
+    </style>
+  </defs>
+
+  <text x="600" y="36" text-anchor="middle" class="title">Campaign Studio  System Architecture</text>
+  <text x="600" y="58" text-anchor="middle" class="subtitle">Team FBB · Temporal + Express + Next.js · Loomi Connect MCP</text>
+
+  <!-- User -->
+  <rect x="520" y="78" width="160" height="44" class="pill"/>
+  <text x="600" y="105" text-anchor="middle" class="node">Marketer</text>
+
+  <!-- Next.js UI -->
+  <rect x="80" y="150" width="1040" height="150" class="group group-ui"/>
+  <text x="100" y="178" class="box-title">Next.js  Campaign Studio</text>
+  <rect x="110" y="192" width="170" height="36" class="pill"/><text x="195" y="215" text-anchor="middle" class="node">Campaign brief form</text>
+  <rect x="300" y="192" width="190" height="36" class="pill"/><text x="395" y="215" text-anchor="middle" class="node">MCP connection banner</text>
+  <rect x="510" y="192" width="210" height="36" class="pill"/><text x="615" y="215" text-anchor="middle" class="node">Reasoning stream + evidence</text>
+  <rect x="740" y="192" width="170" height="36" class="pill"/><text x="825" y="215" text-anchor="middle" class="node">Human approval gate</text>
+  <rect x="930" y="192" width="170" height="36" class="pill"/><text x="1015" y="215" text-anchor="middle" class="node">Copy / image / UI artifacts</text>
+
+  <!-- Express API -->
+  <rect x="380" y="330" width="440" height="70" class="group group-api"/>
+  <text x="400" y="358" class="box-title">Express API</text>
+  <rect x="470" y="368" width="260" height="36" class="pill"/>
+  <text x="600" y="391" text-anchor="middle" class="node">Campaign + MCP auth routes</text>
+
+  <!-- Temporal -->
+  <rect x="80" y="430" width="1040" height="200" class="group group-temporal"/>
+  <text x="100" y="458" class="box-title">Temporal  CampaignGenerationWorkflow</text>
+  <rect x="120" y="478" width="250" height="40" class="pill"/><text x="245" y="503" text-anchor="middle" class="node">agentReasoningActivity</text>
+  <rect x="400" y="478" width="180" height="40" class="pill"/><text x="490" y="503" text-anchor="middle" class="node">generateCopyActivity</text>
+  <rect x="610" y="478" width="180" height="40" class="pill"/><text x="700" y="503" text-anchor="middle" class="node">generateImageActivity</text>
+  <rect x="820" y="478" width="180" height="40" class="pill"/><text x="910" y="503" text-anchor="middle" class="node">generateUIActivity</text>
+  <text x="600" y="555" text-anchor="middle" class="subtitle">Pauses on recommendation_ready until approveCampaign signal</text>
+  <text x="600" y="578" text-anchor="middle" class="subtitle">GET /api/campaigns/:id/progress  SSE to UI</text>
+
+  <!-- Reasoning layer -->
+  <rect x="200" y="660" width="360" height="90" class="group group-agent"/>
+  <text x="220" y="688" class="box-title">Reasoning layer</text>
+  <rect x="240" y="700" width="280" height="40" class="pill"/>
+  <text x="380" y="725" text-anchor="middle" class="node">Gemini + automatic MCP function calling</text>
+
+  <!-- Loomi Connect MCP -->
+  <rect x="620" y="660" width="500" height="120" class="group group-mcp"/>
+  <text x="640" y="688" class="box-title">Loomi Connect MCP</text>
+  <rect x="650" y="702" width="140" height="36" class="pill"/><text x="720" y="725" text-anchor="middle" class="node">Conversations / catalog</text>
+  <rect x="810" y="702" width="130" height="36" class="pill"/><text x="875" y="725" text-anchor="middle" class="node">Marketing  OAuth</text>
+  <rect x="960" y="702" width="140" height="36" class="pill"/><text x="1030" y="725" text-anchor="middle" class="node">Analytics (OAuth)</text>
+
+  <!-- Arrows -->
+  <path class="line" d="M600 122 L600 150"/>
+  <path class="line" d="M600 300 L600 330"/>
+  <path class="line" d="M600 400 L600 430"/>
+  <path class="line" d="M245 518 L245 660 L380 720"/>
+  <path class="line" d="M380 720 L650 722"/>
+  <path class="line" d="M490 518 L490 300 L1015 228"/>
+  <path class="line" d="M700 518 L700 300 L1015 228"/>
+  <path class="line" d="M910 518 L910 300 L1015 228"/>
+  <path class="line" d="M825 228 L600 400 L245 518" stroke-dasharray="4 3" marker-end="url(#arrow)"/>
+  <text x="720" y="248" class="edge-label">approveCampaign signal</text>
+
+  <text x="600" y="900" text-anchor="middle" class="subtitle">Source: hackathon/ARCHITECTURE.md · github.com/ramonancolon/loomi</text>
+</svg>

@@ -1,0 +1,143 @@
+@import "tailwindcss";
+
+@theme {
+    --font-sans: var(--font-inter), "Inter", ui-sans-serif, system-ui, sans-serif;
+    --font-mono: var(--font-jetbrains), "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+
+    --color-bg-theme: #f4f6f8;
+    --color-surface: #ffffff;
+    --color-border-theme: #e2e8f0;
+    --color-primary-theme: #007eff;
+    --color-primary-light: #eef2ff;
+    --color-text-main: #1e293b;
+    --color-text-muted: #64748b;
+    --color-success-theme: #10b981;
+}
+
+.dark {
+    --color-bg-theme: #0b1220;
+    --color-surface: #131a2a;
+    --color-border-theme: #2a3346;
+    --color-primary-theme: #a5b4fc;
+    --color-primary-light: #202b45;
+    --color-text-main: #e2e8f0;
+    --color-text-muted: #c6d0e1;
+    --color-success-theme: #34d399;
+}
+
+@layer base {
+    body {
+        background-color: var(--color-bg-theme);
+        color: var(--color-text-main);
+        font-family: var(--font-sans);
+        -webkit-font-smoothing: antialiased;
+        -moz-osx-font-smoothing: grayscale;
+    }
+
+    h1,
+    h2,
+    h3,
+    h4,
+    h5,
+    h6 {
+        font-weight: 700;
+        letter-spacing: -0.025em;
+        color: var(--color-text-main);
+    }
+}
+
+@layer components {
+    .glass-panel {
+        @apply rounded-2xl border border-border-theme bg-surface shadow-lg;
+    }
+
+    .glass-panel-muted {
+        @apply rounded-2xl border border-border-theme bg-bg-theme shadow-inner;
+    }
+
+    .glass-error {
+        @apply rounded-2xl border border-rose-200 bg-rose-100 p-8 text-rose-900;
+    }
+
+    .dark .glass-error {
+        @apply border-rose-900/40 bg-rose-950/30 text-rose-200;
+    }
+
+    .glass-btn {
+        @apply inline-flex items-center justify-center rounded-lg px-4 py-2 font-semibold transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-theme focus-visible:ring-offset-2;
+    }
+
+    .glass-btn-primary {
+        @apply bg-primary-theme text-white hover:bg-primary-theme/90 shadow-md;
+    }
+
+    .glass-btn-danger {
+        @apply bg-rose-600 text-white hover:bg-rose-700 shadow-md;
+    }
+
+    .glass-btn-secondary {
+        @apply border border-border-theme bg-surface text-text-main hover:bg-bg-theme;
+    }
+
+    .input-field {
+        @apply w-full rounded-lg border border-border-theme bg-surface px-4 py-2.5 text-text-main placeholder:text-text-muted/40 transition-colors focus:border-primary-theme focus:outline-none focus:ring-2 focus:ring-primary-theme/30 disabled:cursor-not-allowed disabled:opacity-50;
+    }
+
+    .field-label {
+        @apply mb-2 block text-sm font-semibold text-text-main;
+    }
+
+    .card {
+        @apply rounded-xl border border-border-theme bg-surface p-6 shadow-sm;
+    }
+
+    .callout-info {
+        @apply rounded-xl border border-primary-theme/20 bg-primary-light p-6 shadow-md;
+    }
+
+    .callout-error {
+        @apply rounded-xl border border-rose-200 bg-rose-100 p-6 shadow-md;
+    }
+
+    .dark .callout-error {
+        @apply border-rose-900/40 bg-rose-950/30;
+    }
+
+    .terminal-panel {
+        @apply h-48 overflow-y-auto rounded-xl border border-border-theme bg-slate-950 p-4 font-mono text-sm text-emerald-400 shadow-inner;
+    }
+
+    .brand-mark {
+        @apply flex h-10 w-10 items-center justify-center rounded-xl bg-primary-theme text-white shadow-lg shadow-primary-theme/20;
+    }
+
+    .ui-layout-preview {
+        @apply bg-white text-black;
+    }
+
+    .ui-layout-preview :is(h1, h2, h3, h4, h5, h6, p, span, button, a, li, label, strong) {
+        color: #000 !important;
+    }
+}
+
+@layer utilities {
+    .animate-fade-in {
+        animation: fade-in 0.3s ease-out;
+    }
+
+    .text-balance {
+        text-wrap: balance;
+    }
+}
+
+@keyframes fade-in {
+    from {
+        opacity: 0;
+        transform: translateY(4px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}

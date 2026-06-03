@@ -1,0 +1,156 @@
+version: '3.8'
+
+services:
+  # PostgreSQL database for Temporal Server
+  postgres:
+    image: postgres:15
+    container_name: loomi-postgres
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-temporal}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-temporal}
+      POSTGRES_DB: ${POSTGRES_DB:-temporal}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-temporal} -d ${POSTGRES_DB:-temporal}" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Elasticsearch for Temporal visibility
+  elasticsearch:
+    image: elasticsearch:8.11.0
+    container_name: loomi-elasticsearch
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+      - ES_JAVA_OPTS=-Xms512m -Xmx512m
+    ports:
+      - "${ELASTICSEARCH_PORT:-9200}:9200"
+    volumes:
+      - elasticsearch_data:/usr/share/elasticsearch/data
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost:9200/_cluster/health" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Temporal Server
+  temporal:
+    image: temporalio/auto-setup:1.24.0
+    container_name: loomi-temporal
+    ports:
+      - "${TEMPORAL_PORT:-7233}:7233"
+      - "${TEMPORAL_WEB_PORT:-8080}:8080"
+    environment:
+      - DB=postgres15
+      - DB_PORT=${POSTGRES_PORT:-5432}
+      - POSTGRES_USER=${POSTGRES_USER:-temporal}
+      - POSTGRES_PWD=${POSTGRES_PASSWORD:-temporal}
+      - POSTGRES_SEEDS=postgres
+      - POSTGRES_DATABASE=${POSTGRES_DB:-temporal}
+      - ES_SEEDS=elasticsearch
+      - ES_PORT=${ELASTICSEARCH_PORT:-9200}
+      - LOG_LEVEL=info
+    depends_on:
+      - postgres
+      - elasticsearch
+    healthcheck:
+      test: [ "CMD", "tctl", "health" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Temporal Worker
+  temporal-worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: loomi-temporal-worker
+    command: ["node", "dist/worker.js"]
+    environment:
+      - NODE_ENV=production
+      - TEMPORAL_ADDRESS=temporal:7233
+      - BACKEND_PORT=${BACKEND_PORT:-8080}
+      - GEMINI_API_KEY=${GEMINI_API_KEY:-}
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - REPLICATE_API_KEY=${REPLICATE_API_KEY:-}
+      - GEMINI_MODEL=${GEMINI_MODEL:-gemini-2.5-flash}
+      - ENGAGEMENT_URL=${ENGAGEMENT_URL:-https://uqa.app.exponea.dev/p/noisy-muffin}
+      - MCP_MARKETING_URL=${MCP_MARKETING_URL:-https://loomi-mcp-alpha.bloomreach.com/mcp}
+      - MCP_CONVERSATION_URL=${MCP_CONVERSATION_URL:-https://uqa.api.exponea.dev/cocoaas/public/api/clarity-search/v1/mcp/019d4917-3c76-7479-9f00-06c620b231bb}
+      - MCP_OAUTH_STORE_PATH=/app/.mcp-oauth/session.json
+      - MCP_OAUTH_REDIRECT_URL=${MCP_OAUTH_REDIRECT_URL:-http://localhost:8080/api/mcp/auth/callback}
+      - POSTGRES_USER=${POSTGRES_USER:-temporal}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-temporal}
+      - POSTGRES_DB=${POSTGRES_DB:-temporal}
+      - POSTGRES_HOST=postgres
+      - POSTGRES_PORT=${POSTGRES_PORT:-5432}
+      - ELASTICSEARCH_HOST=elasticsearch
+      - ELASTICSEARCH_PORT=${ELASTICSEARCH_PORT:-9200}
+    volumes:
+      - mcp_oauth_data:/app/.mcp-oauth
+    depends_on:
+      - temporal
+      - postgres
+      - elasticsearch
+    restart: unless-stopped
+
+  # Express Backend API
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: loomi-backend
+    ports:
+      - "${BACKEND_PORT:-8080}:${BACKEND_PORT:-8080}"
+    environment:
+      - NODE_ENV=production
+      - BACKEND_PORT=${BACKEND_PORT:-8080}
+      - TEMPORAL_ADDRESS=temporal:7233
+      - GEMINI_API_KEY=${GEMINI_API_KEY:-}
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - REPLICATE_API_KEY=${REPLICATE_API_KEY:-}
+      - GEMINI_MODEL=${GEMINI_MODEL:-gemini-2.5-flash}
+      - ENGAGEMENT_URL=${ENGAGEMENT_URL:-https://uqa.app.exponea.dev/p/noisy-muffin}
+      - MCP_MARKETING_URL=${MCP_MARKETING_URL:-https://loomi-mcp-alpha.bloomreach.com/mcp}
+      - MCP_CONVERSATION_URL=${MCP_CONVERSATION_URL:-https://uqa.api.exponea.dev/cocoaas/public/api/clarity-search/v1/mcp/019d4917-3c76-7479-9f00-06c620b231bb}
+      - MCP_OAUTH_STORE_PATH=/app/.mcp-oauth/session.json
+      - MCP_OAUTH_REDIRECT_URL=${MCP_OAUTH_REDIRECT_URL:-http://localhost:8080/api/mcp/auth/callback}
+      - POSTGRES_USER=${POSTGRES_USER:-temporal}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-temporal}
+      - POSTGRES_DB=${POSTGRES_DB:-temporal}
+      - POSTGRES_HOST=postgres
+      - POSTGRES_PORT=${POSTGRES_PORT:-5432}
+      - ELASTICSEARCH_HOST=elasticsearch
+      - ELASTICSEARCH_PORT=${ELASTICSEARCH_PORT:-9200}
+    volumes:
+      - mcp_oauth_data:/app/.mcp-oauth
+    depends_on:
+      - temporal
+      - postgres
+      - elasticsearch
+    restart: unless-stopped
+
+  # Vite Frontend
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: loomi-frontend
+    ports:
+      - "${VITE_PORT:-5173}:${VITE_PORT:-5173}"
+    environment:
+      - NODE_ENV=development
+      - VITE_PORT=${VITE_PORT:-5173}
+      - VITE_BACKEND_URL=http://backend:${BACKEND_PORT:-8080}
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+  elasticsearch_data:
+  mcp_oauth_data:

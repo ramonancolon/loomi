@@ -1,0 +1,91 @@
+# Build container images, push to ECR, and roll ECS services on push to main.
+# One-time AWS setup: see AWS_DEPLOYMENT.md
+
+name: Deploy to AWS (ECS)
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  AWS_REGION: ${{ vars.AWS_REGION || 'us-east-1' }}
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    if: github.repository != '' # always run when workflow is enabled
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        id: ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Set image tags
+        id: tags
+        run: |
+          REGISTRY="${{ steps.ecr.outputs.registry }}"
+          PREFIX="${{ vars.ECR_REPOSITORY_PREFIX || 'loomi' }}"
+          SHA="${GITHUB_SHA::7}"
+          echo "backend=${REGISTRY}/${PREFIX}-backend:${SHA}" >> "$GITHUB_OUTPUT"
+          echo "frontend=${REGISTRY}/${PREFIX}-frontend:${SHA}" >> "$GITHUB_OUTPUT"
+          echo "backend_latest=${REGISTRY}/${PREFIX}-backend:latest" >> "$GITHUB_OUTPUT"
+          echo "frontend_latest=${REGISTRY}/${PREFIX}-frontend:latest" >> "$GITHUB_OUTPUT"
+
+      - name: Build and push backend image
+        uses: docker/build-push-action@v6
+        with:
+          context: ./backend
+          push: true
+          tags: |
+            ${{ steps.tags.outputs.backend }}
+            ${{ steps.tags.outputs.backend_latest }}
+
+      - name: Build and push frontend image
+        uses: docker/build-push-action@v6
+        with:
+          context: ./frontend
+          push: true
+          build-args: |
+            BACKEND_URL=${{ vars.BACKEND_INTERNAL_URL || 'http://backend:3001' }}
+          tags: |
+            ${{ steps.tags.outputs.frontend }}
+            ${{ steps.tags.outputs.frontend_latest }}
+
+      - name: Deploy backend API to ECS
+        run: |
+          aws ecs update-service \
+            --cluster "${{ vars.ECS_CLUSTER }}" \
+            --service "${{ vars.ECS_SERVICE_BACKEND }}" \
+            --force-new-deployment
+
+      - name: Deploy Temporal worker to ECS
+        run: |
+          aws ecs update-service \
+            --cluster "${{ vars.ECS_CLUSTER }}" \
+            --service "${{ vars.ECS_SERVICE_WORKER }}" \
+            --force-new-deployment
+
+      - name: Deploy frontend to ECS
+        run: |
+          aws ecs update-service \
+            --cluster "${{ vars.ECS_CLUSTER }}" \
+            --service "${{ vars.ECS_SERVICE_FRONTEND }}" \
+            --force-new-deployment
+
+      - name: Wait for service stability (backend)
+        run: |
+          aws ecs wait services-stable \
+            --cluster "${{ vars.ECS_CLUSTER }}" \
+            --services "${{ vars.ECS_SERVICE_BACKEND }}"

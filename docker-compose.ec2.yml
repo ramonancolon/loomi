@@ -1,0 +1,80 @@
+# EC2 deployment: app containers only. Point TEMPORAL_ADDRESS at Temporal Cloud (or a remote server).
+# Usage on the instance: docker compose -f docker-compose.ec2.yml --env-file .env up -d --build
+
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: loomi-backend
+    ports:
+      - "${BACKEND_PORT:-3001}:${BACKEND_PORT:-3001}"
+    environment:
+      - NODE_ENV=production
+      - PORT=${BACKEND_PORT:-3001}
+      - TEMPORAL_ADDRESS=${TEMPORAL_ADDRESS}
+      - TEMPORAL_NAMESPACE=${TEMPORAL_NAMESPACE:-default}
+      - TEMPORAL_API_KEY=${TEMPORAL_API_KEY:-}
+      - TEMPORAL_TASK_QUEUE=${TEMPORAL_TASK_QUEUE:-chromaflow-task-queue}
+      - CORS_ALLOWED_ORIGINS=${CORS_ALLOWED_ORIGINS:-http://localhost:3000}
+      - PUBLIC_API_BASE_URL=${PUBLIC_API_BASE_URL:-http://localhost:3001}
+      - GEMINI_API_KEY=${GEMINI_API_KEY:-}
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - REPLICATE_API_KEY=${REPLICATE_API_KEY:-}
+      - GEMINI_MODEL=${GEMINI_MODEL:-gemini-2.5-flash}
+      - ENGAGEMENT_URL=${ENGAGEMENT_URL:-https://uqa.app.exponea.dev/p/noisy-muffin}
+      - MCP_MARKETING_URL=${MCP_MARKETING_URL:-https://loomi-mcp-alpha.bloomreach.com/mcp}
+      - MCP_CONVERSATION_URL=${MCP_CONVERSATION_URL:-https://uqa.api.exponea.dev/cocoaas/public/api/clarity-search/v1/mcp/019d4917-3c76-7479-9f00-06c620b231bb}
+      - MCP_OAUTH_STORE_PATH=/app/.mcp-oauth/session.json
+      - MCP_OAUTH_REDIRECT_URL=${MCP_OAUTH_REDIRECT_URL}
+    volumes:
+      - mcp_oauth_data:/app/.mcp-oauth
+    restart: unless-stopped
+
+  temporal-worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: loomi-temporal-worker
+    command: ["node", "dist/worker.js"]
+    environment:
+      - NODE_ENV=production
+      - TEMPORAL_ADDRESS=${TEMPORAL_ADDRESS}
+      - TEMPORAL_NAMESPACE=${TEMPORAL_NAMESPACE:-default}
+      - TEMPORAL_API_KEY=${TEMPORAL_API_KEY:-}
+      - TEMPORAL_TASK_QUEUE=${TEMPORAL_TASK_QUEUE:-chromaflow-task-queue}
+      - GEMINI_API_KEY=${GEMINI_API_KEY:-}
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - REPLICATE_API_KEY=${REPLICATE_API_KEY:-}
+      - GEMINI_MODEL=${GEMINI_MODEL:-gemini-2.5-flash}
+      - ENGAGEMENT_URL=${ENGAGEMENT_URL:-https://uqa.app.exponea.dev/p/noisy-muffin}
+      - MCP_MARKETING_URL=${MCP_MARKETING_URL:-https://loomi-mcp-alpha.bloomreach.com/mcp}
+      - MCP_CONVERSATION_URL=${MCP_CONVERSATION_URL:-https://uqa.api.exponea.dev/cocoaas/public/api/clarity-search/v1/mcp/019d4917-3c76-7479-9f00-06c620b231bb}
+      - MCP_OAUTH_STORE_PATH=/app/.mcp-oauth/session.json
+    volumes:
+      - mcp_oauth_data:/app/.mcp-oauth
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        # Internal: Next server → backend container
+        BACKEND_URL: http://backend:${BACKEND_PORT:-3001}
+        # Public: browser MCP sign-in (set to same host as PUBLIC_API_BASE_URL)
+        NEXT_PUBLIC_API_BASE_URL: ${NEXT_PUBLIC_API_BASE_URL:-${PUBLIC_API_BASE_URL}}
+    container_name: loomi-frontend
+    ports:
+      - "${FRONTEND_PORT:-3000}:3000"
+    environment:
+      - NODE_ENV=production
+      - BACKEND_URL=http://backend:${BACKEND_PORT:-3001}
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+volumes:
+  mcp_oauth_data:
