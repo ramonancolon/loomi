@@ -1,55 +1,18 @@
 'use client'
 
 import { useCallback, useState } from 'react'
-import { ErrorBoundary } from './ErrorBoundary'
-import { StructuredCopyPreview } from './StructuredCopyPreview'
-import DOMPurify from 'dompurify'
 import { useCampaignStore } from '@/store/useCampaignStore'
 import { useCampaignProgress } from '@/hooks/useCampaignProgress'
-import { approveCampaign, createCampaign, CampaignApiError, rerollCampaignAsset, rerollCopyPreview } from '@/lib/api/campaigns'
+import { approveCampaign, createCampaign, CampaignApiError, rerollCampaignAsset, rerollCopyPreview, dispatchCampaign } from '@/lib/api/campaigns'
 import { buildCampaignAssetFilenames, downloadImageAsset, downloadTextAsset } from '@/lib/downloadAssets'
 import { buildClientCopyPreview } from '@/lib/structuredCopy'
-import { prepareUiPreviewHtml } from '@/lib/uiPreview'
-import { DEFAULT_CAMPAIGN_FORM, PLATFORMS, VIBES } from '@/constants/campaign'
+import { DEFAULT_CAMPAIGN_FORM } from '@/constants/campaign'
 import { McpConnectionBanner } from './McpConnectionBanner'
+import { CampaignBriefForm } from './CampaignBriefForm'
+import { AgentReasoningTerminal } from './AgentReasoningTerminal'
+import { ApprovalPanel } from './ApprovalPanel'
+import { CampaignResultsPanel } from './CampaignResultsPanel'
 import type { CampaignRequest, RerollAsset } from '@/types/campaign'
-
-interface AssetActionBarProps {
-    onDownload: () => void
-    onReroll: () => void
-    downloadDisabled?: boolean
-    rerollDisabled?: boolean
-    rerolling?: boolean
-}
-
-function AssetActionBar({
-    onDownload,
-    onReroll,
-    downloadDisabled = false,
-    rerollDisabled = false,
-    rerolling = false,
-}: AssetActionBarProps) {
-    return (
-        <div className="mt-2 flex justify-end gap-2">
-            <button
-                type="button"
-                onClick={onDownload}
-                disabled={downloadDisabled}
-                className="rounded-md border border-border-theme px-2 py-1 text-xs text-text-muted transition hover:bg-bg-theme disabled:cursor-not-allowed disabled:opacity-40"
-            >
-                Download
-            </button>
-            <button
-                type="button"
-                onClick={onReroll}
-                disabled={rerollDisabled || rerolling}
-                className="rounded-md border border-border-theme px-2 py-1 text-xs text-text-muted transition hover:bg-bg-theme disabled:cursor-not-allowed disabled:opacity-40"
-            >
-                {rerolling ? 'Rerolling…' : 'Reroll'}
-            </button>
-        </div>
-    )
-}
 
 export function CreativeStudioWorkspace() {
     const { agentState, workflowId, setAgentState, setWorkflowId, reset } = useCampaignStore()
@@ -200,6 +163,35 @@ export function CreativeStudioWorkspace() {
         }
     }
 
+    const handleDispatch = async () => {
+        if (!workflowId || !agentState.recommendation) return
+
+        setError(null)
+        setAgentState({
+            status: 'executing',
+            reasoningStream: [...agentState.reasoningStream, 'Dispatching campaign...'],
+        })
+
+        try {
+            await dispatchCampaign(workflowId, {
+                segmentName: agentState.dispatchSegmentName || 'Default Segment',
+                subject: agentState.dispatchSubject || 'Your Campaign',
+                bodyHtml: agentState.dispatchBodyHtml || '',
+            })
+            setAgentState({
+                status: 'complete',
+                reasoningStream: [...agentState.reasoningStream, 'Campaign dispatched successfully!'],
+            })
+        } catch (err) {
+            const message = err instanceof CampaignApiError ? err.message : 'Failed to dispatch campaign'
+            setError(message)
+            setAgentState({
+                status: 'error',
+                reasoningStream: [...agentState.reasoningStream, `Dispatch failed: ${message}`],
+            })
+        }
+    }
+
     const isWorking = agentState.status !== 'idle' && agentState.status !== 'complete'
 
     const strategyEvidence = agentState.evidence ?? []
@@ -208,99 +200,13 @@ export function CreativeStudioWorkspace() {
         <div className="flex h-full flex-col gap-4">
             <McpConnectionBanner />
             <div className="flex min-h-0 flex-1 flex-col gap-6 lg:flex-row">
-                <div className="glass-panel flex w-full flex-col gap-6 p-6 lg:w-1/3">
-                    <div>
-                        <label htmlFor="brandName" className="field-label">Brand Name</label>
-                        <input
-                            id="brandName"
-                            type="text"
-                            name="brandName"
-                            value={formData.brandName}
-                            onChange={handleInputChange}
-                            placeholder="e.g., Nexus Athletics"
-                            className="input-field"
-                            disabled={isWorking}
-                        />
-                    </div>
-
-                    <div>
-                        <label htmlFor="campaignGoal" className="field-label">Campaign Goal</label>
-                        <textarea
-                            id="campaignGoal"
-                            name="campaignGoal"
-                            value={formData.campaignGoal}
-                            onChange={handleInputChange}
-                            placeholder="e.g., Win back customers who haven't purchased in 6 months..."
-                            className="input-field h-24 resize-none"
-                            disabled={isWorking}
-                        />
-                    </div>
-
-                    <div>
-                        <label htmlFor="targetAudience" className="field-label">Target Audience Segment</label>
-                        <input
-                            id="targetAudience"
-                            type="text"
-                            name="targetAudience"
-                            value={formData.targetAudience}
-                            onChange={handleInputChange}
-                            placeholder="e.g., Lapsed VIPs"
-                            className="input-field"
-                            disabled={isWorking}
-                        />
-                    </div>
-
-                    <div>
-                        <label htmlFor="vibe" className="field-label">Creative Vibe</label>
-                        <select
-                            id="vibe"
-                            name="vibe"
-                            value={formData.vibe}
-                            onChange={handleInputChange}
-                            className="input-field"
-                            disabled={isWorking}
-                        >
-                            {VIBES.map((vibe) => (
-                                <option key={vibe.id} value={vibe.id}>{vibe.name}</option>
-                            ))}
-                        </select>
-                    </div>
-
-                    <div>
-                        <label htmlFor="platform" className="field-label">Platform</label>
-                        <select
-                            id="platform"
-                            name="platform"
-                            value={formData.platform}
-                            onChange={handleInputChange}
-                            className="input-field"
-                            disabled={isWorking}
-                        >
-                            {PLATFORMS.map((platform) => (
-                                <option key={platform.id} value={platform.id}>{platform.name}</option>
-                            ))}
-                        </select>
-                    </div>
-
-                    {error && (
-                        <div className="rounded-lg border border-rose-200 bg-rose-100 p-3 text-sm text-rose-800 dark:border-rose-900/40 dark:bg-rose-950/30 dark:text-rose-200">
-                            {error}
-                        </div>
-                    )}
-
-                    <button
-                        type="button"
-                        onClick={handleGenerate}
-                        disabled={isWorking || !formData.brandName || !formData.campaignGoal || !formData.targetAudience}
-                        className={`glass-btn w-full py-3 ${
-                            isWorking
-                                ? 'cursor-not-allowed bg-primary-theme/50 text-white'
-                                : 'glass-btn-primary'
-                        }`}
-                    >
-                        {isWorking ? 'Agent Active...' : 'Launch Autonomous Agent'}
-                    </button>
-                </div>
+                <CampaignBriefForm
+                    formData={formData}
+                    onChange={handleInputChange}
+                    onSubmit={() => { void handleGenerate() }}
+                    isWorking={isWorking}
+                    error={error}
+                />
 
                 <div className="glass-panel-muted flex w-full flex-col gap-6 overflow-hidden p-6 lg:w-2/3">
                     {agentState.status === 'idle' && (
@@ -343,178 +249,42 @@ export function CreativeStudioWorkspace() {
 
                     {(agentState.status !== 'idle' && agentState.status !== 'error') && (
                         <div
-                            className={`flex h-full flex-col space-y-6 ${
-                                isRecommendationReady ? 'overflow-y-auto' : 'overflow-hidden'
-                            }`}
-                        >
-                            <div
-                                className={`terminal-panel shrink-0 ${
-                                    isRecommendationReady ? 'max-h-32' : ''
+                            className={`flex h-full flex-col space-y-6 ${isRecommendationReady ? 'overflow-y-auto' : 'overflow-hidden'
                                 }`}
-                                aria-live="polite"
-                                aria-atomic="false"
-                            >
-                                <p className="mb-2 text-slate-500"># Agent Reasoning Stream</p>
-                                {agentState.reasoningStream.map((log, idx) => (
-                                    <div key={idx} className="mb-1 animate-fade-in opacity-90">
-                                        <span className="mr-2 text-slate-500">{'>'}</span>
-                                        {log}
-                                    </div>
-                                ))}
-                                {agentState.status === 'reasoning' && (
-                                    <div className="animate-pulse text-emerald-500">_</div>
-                                )}
-                            </div>
+                        >
+                            <AgentReasoningTerminal
+                                reasoningStream={agentState.reasoningStream}
+                                isReasoning={agentState.status === 'reasoning'}
+                                className={isRecommendationReady ? 'max-h-32' : ''}
+                            />
 
                             {isRecommendationReady && (
-                                <div className="callout-info animate-fade-in shrink-0">
-                                    <div className="flex items-start gap-4">
-                                        <div className="shrink-0 rounded-full bg-primary-theme/15 p-3 text-primary-theme">
-                                            <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                            </svg>
-                                        </div>
-                                        <div className="min-w-0 flex-1">
-                                            <h3 className="mb-2 text-lg font-bold text-text-main">Agent Strategy Recommendation Ready</h3>
-                                            <p className="mb-2 text-text-muted">
-                                                The agent used Bloomreach MCP intelligence to recommend creative direction.
-                                                <strong className="font-medium text-text-main"> Nothing is sent to customers or published to Engagement until you approve.</strong>
-                                                {' '}Approving only generates review artifacts (copy, visual, layout) in this studio.
-                                            </p>
-                                            {agentState.usedDemoFallback && (
-                                                <p className="mb-2 text-sm text-amber-700 dark:text-amber-400">
-                                                    This run used demo fallback data. Sign in via the banner above, set GEMINI_API_KEY, then launch again.
-                                                </p>
-                                            )}
-                                            {!agentState.usedDemoFallback && agentState.mcpConnected && !agentState.mcpToolsInvoked && (
-                                                <p className="mb-2 text-sm text-amber-700 dark:text-amber-400">
-                                                    Bloomreach MCP is connected, but this run did not invoke MCP tools. Check the reasoning stream or try launching again.
-                                                </p>
-                                            )}
-                                            {strategyEvidence.length > 0 && (
-                                                <div className="mb-4 rounded-lg border border-border-theme bg-bg-theme/50 p-3">
-                                                    <p className="mb-2 text-sm font-medium text-text-main">Evidence cited</p>
-                                                    <ul className="list-inside list-disc space-y-1 text-sm text-text-muted">
-                                                        {strategyEvidence.map((item, idx) => (
-                                                            <li key={idx}>{item}</li>
-                                                        ))}
-                                                    </ul>
-                                                </div>
-                                            )}
-                                            <div className="mb-4">
-                                                <p className="mb-2 text-sm font-medium text-text-main">Proposed copy preview</p>
-                                                <StructuredCopyPreview
-                                                    copy={strategyCopyPreview}
-                                                    compact
-                                                    embedded
-                                                />
-                                            </div>
-                                            <div className="flex flex-wrap gap-3">
-                                                <button
-                                                    type="button"
-                                                    onClick={handleApprove}
-                                                    disabled={rerollingPreview}
-                                                    className="glass-btn glass-btn-primary px-6 py-2"
-                                                >
-                                                    Approve & Execute Strategy
-                                                </button>
-                                                <button
-                                                    type="button"
-                                                    onClick={() => { void handleRerollPreview() }}
-                                                    disabled={rerollingPreview}
-                                                    className="glass-btn glass-btn-danger px-6 py-2"
-                                                >
-                                                    {rerollingPreview ? 'Rerolling…' : 'Reroll'}
-                                                </button>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
+                                <ApprovalPanel
+                                    onApprove={() => { void handleApprove() }}
+                                    onRerollPreview={() => { void handleRerollPreview() }}
+                                    rerollingPreview={rerollingPreview}
+                                    strategyCopyPreview={strategyCopyPreview}
+                                    strategyEvidence={strategyEvidence}
+                                    usedDemoFallback={agentState.usedDemoFallback}
+                                    mcpConnected={agentState.mcpConnected}
+                                    mcpToolsInvoked={agentState.mcpToolsInvoked}
+                                />
                             )}
 
                             {agentState.recommendation && (agentState.status === 'executing' || agentState.status === 'complete') && (
-                                <div className="flex-1 space-y-6 overflow-y-auto">
-                                    <ErrorBoundary>
-                                        <div className="card">
-                                            <h3 className="mb-4 text-lg font-bold text-text-main">Generated Marketing Copy</h3>
-                                            {agentState.recommendation.copy ? (
-                                                <StructuredCopyPreview copy={agentState.recommendation.copy} />
-                                            ) : (
-                                                <div className="flex h-24 animate-pulse items-center justify-center rounded-lg bg-bg-theme text-text-muted">
-                                                    Generating copy...
-                                                </div>
-                                            )}
-                                            <AssetActionBar
-                                                onDownload={handleDownloadCopy}
-                                                onReroll={() => { void handleRerollAsset('copy') }}
-                                                downloadDisabled={!agentState.recommendation.copy}
-                                                rerollDisabled={!canRerollAssets || !agentState.recommendation.copy}
-                                                rerolling={rerollingAsset === 'copy'}
-                                            />
-                                        </div>
-
-                                        <div className="card">
-                                            <h3 className="mb-4 text-lg font-bold text-text-main">Campaign Visual</h3>
-                                            {agentState.recommendation.imageUrl ? (
-                                                <img
-                                                    src={agentState.recommendation.imageUrl}
-                                                    alt="Campaign Visual"
-                                                    className="w-full rounded-lg shadow-sm"
-                                                    onError={(e) => {
-                                                        (e.target as HTMLImageElement).src = 'https://placehold.co/800x400/e2e8f0/475569?text=Visual+Generation+Failed'
-                                                    }}
-                                                />
-                                            ) : (
-                                                <div className="flex h-48 animate-pulse items-center justify-center rounded-lg bg-bg-theme text-text-muted">
-                                                    Generating Visual...
-                                                </div>
-                                            )}
-                                            <AssetActionBar
-                                                onDownload={() => { void handleDownloadImage() }}
-                                                onReroll={() => { void handleRerollAsset('image') }}
-                                                downloadDisabled={!agentState.recommendation.imageUrl}
-                                                rerollDisabled={!canRerollAssets || !agentState.recommendation.imageUrl || !agentState.recommendation.copy}
-                                                rerolling={rerollingAsset === 'image'}
-                                            />
-                                        </div>
-
-                                        <div className="card">
-                                            <h3 className="mb-4 text-lg font-bold text-text-main">UI Layout Preview</h3>
-                                            {agentState.recommendation.uiComponent ? (
-                                                <div className="space-y-3">
-                                                    <div
-                                                        className="ui-layout-preview overflow-hidden rounded-lg border border-border-theme shadow-inner"
-                                                        dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(prepareUiPreviewHtml(agentState.recommendation.uiComponent)) }}
-                                                    />
-                                                    <details className="rounded-lg border border-border-theme bg-bg-theme">
-                                                        <summary className="cursor-pointer px-4 py-2 text-sm font-medium text-text-muted">
-                                                            View HTML source
-                                                        </summary>
-                                                        <pre className="max-h-64 overflow-auto border-t border-border-theme p-4 text-xs text-text-main">
-                                                            <code>{agentState.recommendation.uiComponent}</code>
-                                                        </pre>
-                                                    </details>
-                                                </div>
-                                            ) : (
-                                                <div className="flex h-32 animate-pulse items-center justify-center rounded-lg bg-bg-theme text-text-muted">
-                                                    Generating UI Layout...
-                                                </div>
-                                            )}
-                                            <AssetActionBar
-                                                onDownload={handleDownloadUi}
-                                                onReroll={() => { void handleRerollAsset('ui') }}
-                                                downloadDisabled={!agentState.recommendation.uiComponent}
-                                                rerollDisabled={
-                                                    !canRerollAssets
-                                                    || !agentState.recommendation.uiComponent
-                                                    || !agentState.recommendation.copy
-                                                    || !agentState.recommendation.imageUrl
-                                                }
-                                                rerolling={rerollingAsset === 'ui'}
-                                            />
-                                        </div>
-                                    </ErrorBoundary>
-                                </div>
+                                <CampaignResultsPanel
+                                    recommendation={agentState.recommendation}
+                                    assetFilenames={assetFilenames}
+                                    onDownloadCopy={handleDownloadCopy}
+                                    onDownloadImage={() => { void handleDownloadImage() }}
+                                    onDownloadUi={handleDownloadUi}
+                                    onRerollAsset={(asset) => { void handleRerollAsset(asset) }}
+                                    canRerollAssets={canRerollAssets}
+                                    rerollingAsset={rerollingAsset}
+                                    onDispatch={handleDispatch}
+                                    isDispatching={agentState.status === 'executing' && agentState.reasoningStream.some(msg => msg.includes('Dispatching campaign'))}
+                                    dispatchSuccess={agentState.status === 'complete' && agentState.reasoningStream.some(msg => msg.includes('Campaign dispatched successfully'))}
+                                />
                             )}
                         </div>
                     )}

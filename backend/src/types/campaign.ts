@@ -9,7 +9,7 @@ export interface CampaignRequest {
 }
 
 // Ensure the backend status matches the AgentState plus the generation steps
-export type WorkflowStatus = 'pending' | 'reasoning' | 'recommendation_ready' | 'approved' | 'copy_gen' | 'image_gen' | 'ui_layout_gen' | 'complete' | 'error'
+export type WorkflowStatus = 'pending' | 'reasoning' | 'recommendation_ready' | 'approved' | 'copy_gen' | 'image_gen' | 'ui_layout_gen' | 'complete' | 'dispatching' | 'dispatched' | 'error'
 
 export interface CampaignResult {
     id: string
@@ -31,6 +31,11 @@ export interface CampaignResult {
     status: WorkflowStatus
     progress: number
     errorMessage?: string | null
+    dispatchSegmentName?: string
+    dispatchSubject?: string
+    dispatchBodyHtml?: string
+    dispatchSuccess?: boolean
+    dispatchErrorMessage?: string
 }
 
 export interface CampaignResponse extends CampaignResult {

@@ -20,6 +20,10 @@ interface AgentReasoningActivity {
     (campaign: CampaignRequest): Promise<ReasoningResult>
 }
 
+interface DispatchCampaignActivity {
+    (input: { segmentName: string; subject: string; bodyHtml: string }): Promise<{ success: boolean; dispatchedAt: string }>
+}
+
 const { agentReasoningActivity } = proxyActivities<{
     agentReasoningActivity: AgentReasoningActivity
 }>({
@@ -34,6 +38,12 @@ const { generateCopyActivity, generateImageActivity, generateUIActivity } = prox
     startToCloseTimeout: '2 minutes',
 })
 
+const { dispatchCampaignActivity } = proxyActivities<{
+    dispatchCampaignActivity: DispatchCampaignActivity
+}>({
+    startToCloseTimeout: '2 minutes',
+})
+
 // Define queries
 export const getStatusQuery = defineQuery<WorkflowStatus>('status')
 export const getProgressQuery = defineQuery<number>('progress')
@@ -42,6 +52,7 @@ export const getPartialResultsQuery = defineQuery<CampaignResult>('partialResult
 // Define signal
 export const approveCampaignSignal = defineSignal('approveCampaign')
 export const rerollCopyPreviewSignal = defineSignal<[string]>('rerollCopyPreview')
+export const dispatchCampaignSignal = defineSignal<[string, string, string]>('dispatchCampaign')
 
 function getWorkflowErrorMessage(error: unknown): string {
     if (error instanceof ActivityFailure) {
@@ -73,10 +84,16 @@ export async function CampaignGenerationWorkflow(campaign: CampaignRequest, work
     let mcpToolsInvoked = false
     let mcpConnected = false
     let isApproved = false
+    let isDispatched = false
     let finalVibe = campaign.vibe
 
     // Workflow state for error handling
     let errorMessage: string | undefined
+
+    // Dispatch state
+    let dispatchSegmentName = ''
+    let dispatchSubject = ''
+    let dispatchBodyHtml = ''
 
     // Register query handlers
     setHandler(getStatusQuery, () => workflowStatus)
@@ -114,11 +131,19 @@ export async function CampaignGenerationWorkflow(campaign: CampaignRequest, work
         }
     })
 
+    // Register dispatch signal handler
+    setHandler(dispatchCampaignSignal, (segmentName: string, subject: string, bodyHtml: string) => {
+        dispatchSegmentName = segmentName
+        dispatchSubject = subject
+        dispatchBodyHtml = bodyHtml
+        isDispatched = true
+    })
+
     try {
         // Phase 1: Understand & Decide (Agent Reasoning)
         workflowStatus = 'reasoning'
         workflowProgress = 10
-        
+
         const reasoningResult = await agentReasoningActivity(campaign)
         reasoningStream = reasoningResult.reasoningStream
         strategyEvidence = reasoningResult.evidence
@@ -131,7 +156,7 @@ export async function CampaignGenerationWorkflow(campaign: CampaignRequest, work
         // Phase 2: Recommend (Wait for Human Approval)
         workflowStatus = 'recommendation_ready'
         workflowProgress = 25
-        
+
         // Pause workflow until signal is received
         await condition(() => isApproved)
 
@@ -166,6 +191,31 @@ export async function CampaignGenerationWorkflow(campaign: CampaignRequest, work
         workflowStatus = 'complete'
         workflowProgress = 100
 
+        // Wait for dispatch signal after completion
+        await condition(() => isDispatched)
+
+        // Dispatch the campaign
+        workflowStatus = 'dispatching'
+        workflowProgress = 100
+
+        try {
+            const dispatchResult = await dispatchCampaignActivity({
+                segmentName: dispatchSegmentName,
+                subject: dispatchSubject,
+                bodyHtml: dispatchBodyHtml,
+            })
+
+            if (dispatchResult.success) {
+                workflowStatus = 'dispatched'
+            } else {
+                workflowStatus = 'error'
+                errorMessage = 'Failed to dispatch campaign'
+            }
+        } catch (dispatchError) {
+            workflowStatus = 'error'
+            errorMessage = getWorkflowErrorMessage(dispatchError)
+        }
+
         return {
             id: workflowId,
             brandName: campaign.brandName,
@@ -180,10 +230,15 @@ export async function CampaignGenerationWorkflow(campaign: CampaignRequest, work
             reasoningStream,
             evidence: strategyEvidence,
             usedDemoFallback,
-        mcpToolsInvoked,
-        mcpConnected,
-            status: 'complete',
-            progress: 100,
+            mcpToolsInvoked,
+            mcpConnected,
+            status: workflowStatus,
+            progress: workflowProgress,
+            dispatchSegmentName,
+            dispatchSubject,
+            dispatchBodyHtml,
+            dispatchSuccess: workflowStatus === 'dispatched',
+            dispatchErrorMessage: errorMessage,
         }
     } catch (error) {
         workflowStatus = 'error'
@@ -204,8 +259,8 @@ export async function CampaignGenerationWorkflow(campaign: CampaignRequest, work
             reasoningStream,
             evidence: strategyEvidence,
             usedDemoFallback,
-        mcpToolsInvoked,
-        mcpConnected,
+            mcpToolsInvoked,
+            mcpConnected,
             status: 'error',
             progress: 100,
             errorMessage,
