@@ -12,44 +12,29 @@ const { mockActivities } = vi.hoisted(() => {
             generateCopyActivity: vi.fn().mockResolvedValue('Mock copy'),
             generateImageActivity: vi.fn().mockResolvedValue('https://mock.image.url'),
             generateUIActivity: vi.fn().mockResolvedValue('<MockUI />'),
-            dispatchCampaignActivity: vi.fn().mockResolvedValue({ success: true }),
         }
     }
 })
 
-// We need to mock the workflow context before importing the workflow
 vi.mock('@temporalio/workflow', () => {
     let handlers: Record<string, Function> = {}
-    let conditionResolvers: Array<() => void> = []
 
     return {
         proxyActivities: () => mockActivities,
         defineQuery: (name: string) => name,
         defineSignal: (name: string) => name,
-        condition: vi.fn().mockImplementation((predicateFn: () => boolean) => {
-            return new Promise<void>((resolve) => {
-                if (predicateFn()) {
-                    resolve()
-                } else {
-                    conditionResolvers.push(resolve)
-                }
-            })
-        }),
+        condition: vi.fn().mockResolvedValue(true),
         setHandler: (query: any, handler: Function) => {
             handlers[query] = handler
         },
         sleep: vi.fn().mockResolvedValue(undefined),
         // Expose handlers for testing
         __getHandlers: () => handlers,
-        __clearHandlers: () => { handlers = {} },
-        __resolveCondition: () => {
-            const resolver = conditionResolvers.shift()
-            if (resolver) resolver()
-        }
+        __clearHandlers: () => { handlers = {} }
     }
 })
 
-import { CampaignGenerationWorkflow, getStatusQuery, getProgressQuery, getPartialResultsQuery, dispatchCampaignSignal } from './campaignGenerationWorkflow'
+import { CampaignGenerationWorkflow, getStatusQuery, getProgressQuery, getPartialResultsQuery } from './campaignGenerationWorkflow'
 
 describe('campaignGenerationWorkflow', () => {
     beforeEach(async () => {
@@ -66,7 +51,6 @@ describe('campaignGenerationWorkflow', () => {
         mockActivities.generateCopyActivity.mockResolvedValue('Mock copy')
         mockActivities.generateImageActivity.mockResolvedValue('https://mock.image.url')
         mockActivities.generateUIActivity.mockResolvedValue('<MockUI />')
-        mockActivities.dispatchCampaignActivity.mockResolvedValue({ success: true })
     })
 
     it('should execute the campaign generation workflow successfully', async () => {
@@ -126,68 +110,4 @@ describe('campaignGenerationWorkflow', () => {
         expect(result?.errorMessage).toBe('Image generation failed: quota exceeded')
     })
 
-    it('should handle dispatch signal and update status to dispatched', async () => {
-        const input = {
-            brandName: 'Test Brand',
-            campaignGoal: 'Test Goal',
-            targetAudience: 'Test Audience',
-            vibe: 'minimalist',
-            platform: 'email'
-        }
-
-        const promise = CampaignGenerationWorkflow(input, 'test-workflow-id')
-
-        // Wait for the workflow to reach the dispatch wait state
-        await new Promise(resolve => setTimeout(resolve, 10))
-
-        // Send the dispatch signal
-        const workflowModule = await import('@temporalio/workflow')
-        const handlers = (workflowModule as any).__getHandlers()
-        if ('dispatchCampaign' in handlers) {
-            handlers['dispatchCampaign']('Test Segment', 'Test Subject', '<html>Test Body</html>')
-        }
-
-        const result = await promise
-
-        expect(result?.status).toBe('dispatched')
-        expect(result?.progress).toBe(100)
-        expect(result?.dispatchSegmentName).toBe('Test Segment')
-        expect(result?.dispatchSubject).toBe('Test Subject')
-        expect(result?.dispatchBodyHtml).toBe('<html>Test Body</html>')
-        expect(mockActivities.dispatchCampaignActivity).toHaveBeenCalledWith({
-            segmentName: 'Test Segment',
-            subject: 'Test Subject',
-            bodyHtml: '<html>Test Body</html>'
-        })
-    })
-
-    it('should handle dispatch failure and update status to error', async () => {
-        // Mock dispatch activity to fail
-        mockActivities.dispatchCampaignActivity.mockResolvedValue({ success: false, errorMessage: 'Failed to connect' })
-
-        const input = {
-            brandName: 'Test Brand',
-            campaignGoal: 'Test Goal',
-            targetAudience: 'Test Audience',
-            vibe: 'minimalist',
-            platform: 'email'
-        }
-
-        const promise = CampaignGenerationWorkflow(input, 'test-workflow-id')
-
-        // Wait for the workflow to reach the dispatch wait state
-        await new Promise(resolve => setTimeout(resolve, 10))
-
-        // Send the dispatch signal
-        const handlers = (await import('@temporalio/workflow')).__getHandlers()
-        if ('dispatchCampaign' in handlers) {
-            handlers['dispatchCampaign']('Test Segment', 'Test Subject', '<html>Test Body</html>')
-        }
-
-        const result = await promise
-
-        expect(result?.status).toBe('error')
-        expect(result?.progress).toBe(100)
-        expect(result?.errorMessage).toBe('Failed to dispatch campaign')
-    })
 })

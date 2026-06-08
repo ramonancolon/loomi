@@ -30,18 +30,7 @@ export interface UIGenerationInput {
     copy: string
     imageUrl: string
 }
-
 export interface UIGenerationOutput {
     uiComponent: string
 }
 
-export interface DispatchCampaignInput {
-    segmentName: string
-    subject: string
-    bodyHtml: string
-}
-
-export interface DispatchCampaignOutput {
-    success: boolean
-    dispatchedAt: string
-}

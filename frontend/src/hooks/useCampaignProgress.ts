@@ -22,10 +22,6 @@ function mapBackendStatusToAgentStatus(
         case 'ui_layout_gen':
         case 'approved':
             return 'executing'
-        case 'dispatching':
-            return 'executing'
-        case 'dispatched':
-            return 'complete'
         case 'complete':
             return 'complete'
         case 'error':

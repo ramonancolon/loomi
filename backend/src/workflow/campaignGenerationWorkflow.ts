@@ -20,10 +20,6 @@ interface AgentReasoningActivity {
     (campaign: CampaignRequest): Promise<ReasoningResult>
 }
 
-interface DispatchCampaignActivity {
-    (input: { segmentName: string; subject: string; bodyHtml: string }): Promise<{ success: boolean; dispatchedAt: string }>
-}
-
 const { agentReasoningActivity } = proxyActivities<{
     agentReasoningActivity: AgentReasoningActivity
 }>({
@@ -38,12 +34,6 @@ const { generateCopyActivity, generateImageActivity, generateUIActivity } = prox
     startToCloseTimeout: '2 minutes',
 })
 
-const { dispatchCampaignActivity } = proxyActivities<{
-    dispatchCampaignActivity: DispatchCampaignActivity
-}>({
-    startToCloseTimeout: '2 minutes',
-})
-
 // Define queries
 export const getStatusQuery = defineQuery<WorkflowStatus>('status')
 export const getProgressQuery = defineQuery<number>('progress')
@@ -52,7 +42,6 @@ export const getPartialResultsQuery = defineQuery<CampaignResult>('partialResult
 // Define signal
 export const approveCampaignSignal = defineSignal('approveCampaign')
 export const rerollCopyPreviewSignal = defineSignal<[string]>('rerollCopyPreview')
-export const dispatchCampaignSignal = defineSignal<[string, string, string]>('dispatchCampaign')
 
 function getWorkflowErrorMessage(error: unknown): string {
     if (error instanceof ActivityFailure) {
@@ -84,16 +73,10 @@ export async function CampaignGenerationWorkflow(campaign: CampaignRequest, work
     let mcpToolsInvoked = false
     let mcpConnected = false
     let isApproved = false
-    let isDispatched = false
     let finalVibe = campaign.vibe
 
     // Workflow state for error handling
     let errorMessage: string | undefined
-
-    // Dispatch state
-    let dispatchSegmentName = ''
-    let dispatchSubject = ''
-    let dispatchBodyHtml = ''
 
     // Register query handlers
     setHandler(getStatusQuery, () => workflowStatus)
@@ -129,14 +112,6 @@ export async function CampaignGenerationWorkflow(campaign: CampaignRequest, work
             copyPreviewBlurb = newPreview.trim()
             reasoningStream = [...reasoningStream, 'Copy preview refreshed for review.']
         }
-    })
-
-    // Register dispatch signal handler
-    setHandler(dispatchCampaignSignal, (segmentName: string, subject: string, bodyHtml: string) => {
-        dispatchSegmentName = segmentName
-        dispatchSubject = subject
-        dispatchBodyHtml = bodyHtml
-        isDispatched = true
     })
 
     try {
@@ -191,31 +166,6 @@ export async function CampaignGenerationWorkflow(campaign: CampaignRequest, work
         workflowStatus = 'complete'
         workflowProgress = 100
 
-        // Wait for dispatch signal after completion
-        await condition(() => isDispatched)
-
-        // Dispatch the campaign
-        workflowStatus = 'dispatching'
-        workflowProgress = 100
-
-        try {
-            const dispatchResult = await dispatchCampaignActivity({
-                segmentName: dispatchSegmentName,
-                subject: dispatchSubject,
-                bodyHtml: dispatchBodyHtml,
-            })
-
-            if (dispatchResult.success) {
-                workflowStatus = 'dispatched'
-            } else {
-                workflowStatus = 'error'
-                errorMessage = 'Failed to dispatch campaign'
-            }
-        } catch (dispatchError) {
-            workflowStatus = 'error'
-            errorMessage = getWorkflowErrorMessage(dispatchError)
-        }
-
         return {
             id: workflowId,
             brandName: campaign.brandName,
@@ -234,11 +184,6 @@ export async function CampaignGenerationWorkflow(campaign: CampaignRequest, work
             mcpConnected,
             status: workflowStatus,
             progress: workflowProgress,
-            dispatchSegmentName,
-            dispatchSubject,
-            dispatchBodyHtml,
-            dispatchSuccess: workflowStatus === 'dispatched',
-            dispatchErrorMessage: errorMessage,
         }
     } catch (error) {
         workflowStatus = 'error'

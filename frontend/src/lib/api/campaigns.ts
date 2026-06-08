@@ -76,22 +76,4 @@ export async function rerollCopyPreview(workflowId: string): Promise<RerollCopyP
     return response.json() as Promise<RerollCopyPreviewResponse>
 }
 
-export interface DispatchCampaignRequest {
-    segmentName: string
-    subject: string
-    bodyHtml: string
-}
-
-export async function dispatchCampaign(workflowId: string, request: DispatchCampaignRequest): Promise<void> {
-    const response = await fetch(`/api/campaigns/${workflowId}/dispatch`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(request),
-    })
-
-    if (!response.ok) {
-        throw new CampaignApiError(await parseErrorResponse(response), response.status)
-    }
-}
-
 export { CampaignApiError }

@@ -69,20 +69,3 @@ export async function buildMockSegmentContext(audience: string): Promise<{
     return { summary, promptContext, insights }
 }
 
-/**
- * Mock MCP Tool: dispatchEmailCampaign
- * Simulates dispatching the campaign to Bloomreach Engagement.
- */
-export async function dispatchEmailCampaign(
-    segmentName: string,
-    subject: string,
-    bodyHtml: string
-): Promise<{ success: boolean; dispatchedAt: string }> {
-    // Simulate network latency
-    await new Promise(resolve => setTimeout(resolve, 1500))
-    
-    return {
-        success: true,
-        dispatchedAt: new Date().toISOString()
-    }
-}

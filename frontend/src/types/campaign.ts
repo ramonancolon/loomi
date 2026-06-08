@@ -6,7 +6,7 @@ export interface CampaignRequest {
     platform: string
 }
 
-export type CampaignStatus = 'pending' | 'reasoning' | 'recommendation_ready' | 'approved' | 'copy_gen' | 'image_gen' | 'ui_layout_gen' | 'complete' | 'dispatching' | 'dispatched' | 'error'
+export type CampaignStatus = 'pending' | 'reasoning' | 'recommendation_ready' | 'approved' | 'copy_gen' | 'image_gen' | 'ui_layout_gen' | 'complete' | 'error'
 
 export interface CampaignResponse {
     id: string
@@ -69,7 +69,4 @@ export interface AgentState {
         imageUrl: string
         uiComponent: string
     }
-    dispatchSegmentName?: string
-    dispatchSubject?: string
-    dispatchBodyHtml?: string
 }

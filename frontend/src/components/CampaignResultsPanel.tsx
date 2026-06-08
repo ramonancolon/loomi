@@ -22,9 +22,6 @@ interface CampaignResultsPanelProps {
     onRerollAsset: (asset: RerollAsset) => void
     canRerollAssets: boolean
     rerollingAsset: RerollAsset | null
-    onDispatch?: () => void
-    isDispatching?: boolean
-    dispatchSuccess?: boolean
 }
 
 export function CampaignResultsPanel({
@@ -36,9 +33,6 @@ export function CampaignResultsPanel({
     onRerollAsset,
     canRerollAssets,
     rerollingAsset,
-    onDispatch,
-    isDispatching,
-    dispatchSuccess,
 }: CampaignResultsPanelProps) {
     const canRerollCopy = canRerollAssets && recommendation.copy
     const canRerollImage = canRerollAssets && recommendation.imageUrl && recommendation.copy
@@ -121,36 +115,6 @@ export function CampaignResultsPanel({
                     />
                 </div>
 
-                {dispatchSuccess && (
-                    <div className="rounded-lg border border-green-500/30 bg-green-500/10 p-4 text-green-600 dark:text-green-400">
-                        <div className="flex items-center gap-2">
-                            <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                            </svg>
-                            <span className="font-medium">Campaign dispatched successfully!</span>
-                        </div>
-                    </div>
-                )}
-
-                <div className="flex gap-3">
-                    <button
-                        onClick={onDispatch}
-                        disabled={isDispatching || !onDispatch}
-                        className="flex-1 rounded-lg bg-blue-600 px-4 py-3 text-sm font-medium text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-blue-400"
-                    >
-                        {isDispatching ? (
-                            <span className="flex items-center justify-center gap-2">
-                                <svg className="h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24">
-                                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-                                </svg>
-                                Dispatching...
-                            </span>
-                        ) : (
-                            'Dispatch Campaign'
-                        )}
-                    </button>
-                </div>
             </div>
         </ErrorBoundary>
     )

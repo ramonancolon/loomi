@@ -3,7 +3,7 @@
 import { useCallback, useState } from 'react'
 import { useCampaignStore } from '@/store/useCampaignStore'
 import { useCampaignProgress } from '@/hooks/useCampaignProgress'
-import { approveCampaign, createCampaign, CampaignApiError, rerollCampaignAsset, rerollCopyPreview, dispatchCampaign } from '@/lib/api/campaigns'
+import { approveCampaign, createCampaign, CampaignApiError, rerollCampaignAsset, rerollCopyPreview } from '@/lib/api/campaigns'
 import { buildCampaignAssetFilenames, downloadImageAsset, downloadTextAsset } from '@/lib/downloadAssets'
 import { buildClientCopyPreview } from '@/lib/structuredCopy'
 import { DEFAULT_CAMPAIGN_FORM } from '@/constants/campaign'
@@ -163,35 +163,6 @@ export function CreativeStudioWorkspace() {
         }
     }
 
-    const handleDispatch = async () => {
-        if (!workflowId || !agentState.recommendation) return
-
-        setError(null)
-        setAgentState({
-            status: 'executing',
-            reasoningStream: [...agentState.reasoningStream, 'Dispatching campaign...'],
-        })
-
-        try {
-            await dispatchCampaign(workflowId, {
-                segmentName: agentState.dispatchSegmentName || 'Default Segment',
-                subject: agentState.dispatchSubject || 'Your Campaign',
-                bodyHtml: agentState.dispatchBodyHtml || '',
-            })
-            setAgentState({
-                status: 'complete',
-                reasoningStream: [...agentState.reasoningStream, 'Campaign dispatched successfully!'],
-            })
-        } catch (err) {
-            const message = err instanceof CampaignApiError ? err.message : 'Failed to dispatch campaign'
-            setError(message)
-            setAgentState({
-                status: 'error',
-                reasoningStream: [...agentState.reasoningStream, `Dispatch failed: ${message}`],
-            })
-        }
-    }
-
     const isWorking = agentState.status !== 'idle' && agentState.status !== 'complete'
 
     const strategyEvidence = agentState.evidence ?? []
@@ -281,9 +252,6 @@ export function CreativeStudioWorkspace() {
                                     onRerollAsset={(asset) => { void handleRerollAsset(asset) }}
                                     canRerollAssets={canRerollAssets}
                                     rerollingAsset={rerollingAsset}
-                                    onDispatch={handleDispatch}
-                                    isDispatching={agentState.status === 'executing' && agentState.reasoningStream.some(msg => msg.includes('Dispatching campaign'))}
-                                    dispatchSuccess={agentState.status === 'complete' && agentState.reasoningStream.some(msg => msg.includes('Campaign dispatched successfully'))}
                                 />
                             )}
                         </div>
